@@ -367,9 +367,23 @@ end
 function Roids.ValidatePlayerAura(aura_data,debuff)
     local limit,amount
     local name = aura_data
+    local isTimeCheck = nil
     if type(aura_data) == "table" then
         limit = aura_data.bigger
-        amount = tonumber(aura_data.amount)
+        -- time check
+        timeAmount = tonumber(aura_data.amount)
+        -- stack check
+        _,_,stackAmount = string.find(aura_data.amount,"^#(%d+)")
+        if not timeAmount and not stackAmount then
+            Roids.Print("invalid stack/time amount argument!")
+        end
+        if timeAmount then
+            isTimeCheck = 1
+            amount = timeAmount
+        else
+            isTimeCheck = nil
+            amount = tonumber(stackAmount)
+        end
         name = aura_data.name
     end
     name = string.gsub(name, "_", " ")
@@ -377,25 +391,50 @@ function Roids.ValidatePlayerAura(aura_data,debuff)
     local ix = 0
     local aura_ix = -1
     local rem = 0
-    repeat
-        aura_ix = GetPlayerBuff(ix,debuff and "HARMFUL" or "HELPFUL")
-        ix = ix + 1
-        if aura_ix ~= -1 then
-            local bid = GetPlayerBuffID(aura_ix)
-            bid = (bid < -1) and bid + 65536 or bid
-            if SpellInfo(bid) == name then
-                rem = GetPlayerBuffTimeLeft(aura_ix)
-                break
+    local stacks = 0
+    if debuff then
+        repeat
+            aura_ix = GetPlayerBuff(ix,"HARMFUL")
+            ix = ix + 1
+            if aura_ix ~= -1 then
+                local bid = GetPlayerBuffID(aura_ix)
+                bid = (bid < -1) and bid + 65536 or bid
+                if SpellInfo(bid) == name then
+                    _,stacks,_,_ = UnitDebuff("player",aura_ix)
+                    rem = GetPlayerBuffTimeLeft(aura_ix)
+                    break
+                end
             end
-        end
-    until aura_ix == -1
+        until aura_ix == -1
+    else
+        repeat
+            aura_ix = GetPlayerBuff(ix,"HELPFUL")
+            ix = ix + 1
+            if aura_ix ~= -1 then
+                local bid = GetPlayerBuffID(aura_ix)
+                bid = (bid < -1) and bid + 65536 or bid
+                if SpellInfo(bid) == name then
+                    _,stacks,_,_ = UnitBuff("player",aura_ix)
+                    rem = GetPlayerBuffTimeLeft(aura_ix)
+                    break
+                end
+            end
+        until aura_ix == -1
+    end
 
-    if limit == 1 and rem ~= 0 then
-        return rem >= amount
+    data = nil
+    if isTimeCheck then
+        data = rem
+    else
+        data = stacks
+    end
+
+    if limit == 1 then
+        return data > amount
     elseif limit == 0 then
-        return rem <= amount
-    elseif limit == nil then
-        return (aura_ix ~= -1)
+        return data < amount
+    else
+        return true
     end
 end
 
