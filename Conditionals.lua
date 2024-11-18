@@ -770,15 +770,19 @@ Roids.Keywords = {
         return Roids.IsTargetInGroupType(conditionals.target, "raid");
     end,
     -- TODO: add multi
+    -- conditionals.group is a table.
+    -- in the original repo conditionals.group is a string.
     group = function(conditionals)
-        if conditionals.group == "party" then
-            return GetNumPartyMembers() > 0;
-        elseif conditionals.group == "raid" then
-            return GetNumRaidMembers() > 0;
+        for _, v in pairs(conditionals.group) do
+            if v == "party" then
+                return GetNumPartyMembers() > 0;
+            elseif v == "raid" then
+                return GetNumRaidMembers() > 0;
+            end
         end
         return false;
     end,
-    
+        
     checkchanneled = function(conditionals)
         return Roids.CheckChanneled(conditionals);
     end,
