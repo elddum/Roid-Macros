@@ -898,7 +898,7 @@ Roids.Keywords = {
     end,
     
     noattacks = function(conditionals)
-        return And(conditionals.attacks,function (v) return not UnitIsUnit("targettarget", v) end)
+        return And(conditionals.noattacks,function (v) return not UnitIsUnit("targettarget", v) end)
     end,
     
     isplayer = function(conditionals)
