@@ -32,7 +32,7 @@ end
 -- target: The unit id to check
 -- help: Optional. If set to 1 then the target must be friendly. If set to 0 it must be an enemy
 -- returns: Whether or not the target is a viable target
-function Roids.IsValidTarget(target, help)    
+function Roids.IsValidTarget(target, help)
 	if target ~= "mouseover" then
 		if not Roids.CheckHelp(target, help) or not UnitExists(target) then
 			return false;
@@ -76,66 +76,26 @@ function Roids.CancelAura(auraName)
     end
 end
 
-local function CheckAura(auraName,isbuff,unit)
-    local i = 1
-    local id = 0
-    while id do
-        if isbuff then
-            _,_,id = UnitBuff(unit,i)
-        else
-            _,_,_,id = UnitDebuff(unit,i)
-        end
-        if id and id < -1 then id = id + 65536 end
-        auraName = string.gsub(auraName, "_"," ")
-        if auraName == SpellInfo(id) then
-            return true
-        end
-        i = i + 1
-    end
-    return false
-end
-
--- Checks whether or not the given buffName is present on the given unit's buff bar
--- buffName: The name of the buff
--- unit: The UnitID of the unit to check
--- returns: True if the buffName can be found, false otherwhise
-function Roids.HasBuffName(buffName, unit)
-    if not buffName or not unit or type(buffName) == "table" then
-        return false;
-    end
-
-    return CheckAura(buffName,true,unit)
-end
-
--- Checks whether or not the given buffName is present on the given unit's debuff bar
--- buffName: The name of the debuff
--- unit: The UnitID of the unit to check
--- returns: True if the buffName can be found, false otherwhise
-function Roids.HasDeBuffName(buffName, unit)
-    if not buffName or not unit or type(buffName) == "table" then
-        return false;
-    end
-
-    return CheckAura(buffName,false,unit) or CheckAura(buffName,true,unit)
-end
-
 function Roids.ValidateAura(aura_data, isbuff, unit)
-    if not unit then return false end
+    if not unit then
+        Roids.Print("[no][de]buff condition does not have a target!")
+        return false
+    end
     if not Roids.has_superwow then
         Roids.Print("'buff/debuff' conditional requires SuperWoW")
-        return
+        return false
     end
     local limit,amount
     local name = aura_data
     if type(aura_data) == "table" then
         limit = aura_data.bigger
-        _,_,amount = string.find(aura_data.amount,"^#(%d+)") -- TODO check this for sunder
         name = aura_data.name
-        amount = tonumber(amount or aura_data.amount)
+        _,_,amount = string.find(aura_data.amount,"^#(%d+)")
         if not amount then
-            print("malformed buff/debuff check")
-            return false -- TODO, is this ok?
+            Roids.Print("invalid stack amount argument!")
+            return false
         end
+        amount = tonumber(amount)
     end
     name = string.gsub(name, "_", " ")
 
@@ -153,9 +113,8 @@ function Roids.ValidateAura(aura_data, isbuff, unit)
             end
             i = i + 1
         end
-    end
-    if stack_count == 0 then
-        -- not found? search buffs then too
+    else
+        -- search buffs
         local i = 1
         local id = 0
         while id do
@@ -169,14 +128,12 @@ function Roids.ValidateAura(aura_data, isbuff, unit)
         end
     end
 
-    if limit == 1 and stack_count > amount then
-        return true
-    elseif limit == 0 and stack_count < amount then
-        return true
-    elseif limit == nil and stack_count == amount then
-        return true
+    if limit == 1 then
+        return stack_count > amount
+    elseif limit == 0 then
+        return stack_count < amount
     else
-        return false
+        return true
     end
 end
 
@@ -418,9 +375,23 @@ function Roids.ValidatePlayerAura(aura_data,debuff)
     end
     local limit,amount
     local name = aura_data
+    local isTimeCheck = nil
     if type(aura_data) == "table" then
         limit = aura_data.bigger
-        amount = tonumber(aura_data.amount)
+        -- time check
+        timeAmount = tonumber(aura_data.amount)
+        -- stack check
+        _,_,stackAmount = string.find(aura_data.amount,"^#(%d+)")
+        if not timeAmount and not stackAmount then
+            Roids.Print("invalid stack/time amount argument!")
+        end
+        if timeAmount then
+            isTimeCheck = 1
+            amount = timeAmount
+        else
+            isTimeCheck = nil
+            amount = tonumber(stackAmount)
+        end
         name = aura_data.name
     end
     name = string.gsub(name, "_", " ")
@@ -428,25 +399,50 @@ function Roids.ValidatePlayerAura(aura_data,debuff)
     local ix = 0
     local aura_ix = -1
     local rem = 0
-    repeat
-        aura_ix = GetPlayerBuff(ix,debuff and "HARMFUL" or "HELPFUL")
-        ix = ix + 1
-        if aura_ix ~= -1 then
-            local bid = GetPlayerBuffID(aura_ix)
-            bid = (bid < -1) and bid + 65536 or bid
-            if SpellInfo(bid) == name then
-                rem = GetPlayerBuffTimeLeft(aura_ix)
-                break
+    local stacks = 0
+    if debuff then
+        repeat
+            aura_ix = GetPlayerBuff(ix,"HARMFUL")
+            ix = ix + 1
+            if aura_ix ~= -1 then
+                local bid = GetPlayerBuffID(aura_ix)
+                bid = (bid < -1) and bid + 65536 or bid
+                if SpellInfo(bid) == name then
+                    _,stacks,_,_ = UnitDebuff("player",aura_ix)
+                    rem = GetPlayerBuffTimeLeft(aura_ix)
+                    break
+                end
             end
-        end
-    until aura_ix == -1
+        until aura_ix == -1
+    else
+        repeat
+            aura_ix = GetPlayerBuff(ix,"HELPFUL")
+            ix = ix + 1
+            if aura_ix ~= -1 then
+                local bid = GetPlayerBuffID(aura_ix)
+                bid = (bid < -1) and bid + 65536 or bid
+                if SpellInfo(bid) == name then
+                    _,stacks,_,_ = UnitBuff("player",aura_ix)
+                    rem = GetPlayerBuffTimeLeft(aura_ix)
+                    break
+                end
+            end
+        until aura_ix == -1
+    end
 
-    if limit == 1 and rem ~= 0 then
-        return rem >= amount
+    data = nil
+    if isTimeCheck then
+        data = rem
+    else
+        data = stacks
+    end
+
+    if limit == 1 then
+        return data > amount
     elseif limit == 0 then
-        return rem <= amount
-    elseif limit == nil then
-        return (aura_ix ~= -1)
+        return data < amount
+    else
+        return true
     end
 end
 
@@ -626,6 +622,21 @@ function Roids.CheckSpellCast(spell,unit)
     end
 end
 
+-- Checks whether or not the distance between player and the current target is less than spell max range
+-- actionSlot: the action slot number of the spell
+-- returns: True or false
+-- check https://wowwiki-archive.fandom.com/wiki/API_IsActionInRange
+function Roids.CheckActionInrange(actionSlot)
+    local ret = IsActionInRange(actionSlot)
+    if ret == 0 then
+        return false
+    elseif ret == 1 then
+        return true
+    else
+        return false
+    end
+end
+
 -- A list of Conditionals and their functions to validate them
 Roids.Keywords = {
     help = function(conditionals)
@@ -779,19 +790,17 @@ Roids.Keywords = {
         end
         return false;
     end,
-    
+
     checkchanneled = function(conditionals)
         return Roids.CheckChanneled(conditionals);
     end,
 
     buff = function(conditionals)
         return And(conditionals.buff,function (v) return Roids.ValidateAura(v, true, conditionals.target) end)
-        -- return And(conditionals.buff,function (v) return Roids.HasBuffName(v, conditionals.target) end)
     end,
 
     nobuff = function(conditionals)
         return And(conditionals.nobuff,function (v) return not Roids.ValidateAura(v, true, conditionals.target) end)
-        -- return And(conditionals.nobuff,function (v) return not Roids.HasBuffName(v, conditionals.target) end)
     end,
 
     debuff = function(conditionals)
@@ -800,7 +809,6 @@ Roids.Keywords = {
 
     nodebuff = function(conditionals)
         return And(conditionals.nodebuff,function (v) return not Roids.ValidateAura(v, false, conditionals.target) end)
-        -- return And(conditionals.nodebuff,function (v) return not Roids.HasDeBuffName(v, conditionals.target) end)
     end,
 
     mybuff = function(conditionals)
@@ -879,5 +887,17 @@ Roids.Keywords = {
     
     isnpc = function(conditionals)
         return not UnitIsPlayer(conditionals.isnpc);
+    end,
+
+    hasPet = function(conditionals)
+        return HasPetUI();
+    end,
+
+    -- TODO update to spellName version, need to implement spell name -> action slot number(same in [reactive])
+    inRange = function(conditionals)
+        return And(conditionals.inRange,function (v) return Roids.CheckActionInrange(v) end)
+    end,
+    outRange = function(conditionals)
+        return And(conditionals.outRange,function (v) return not Roids.CheckActionInrange(v) end)
     end,
 };
