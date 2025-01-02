@@ -78,7 +78,7 @@ end
 
 function Roids.ValidateAura(aura_data, isbuff, unit)
     if not unit then
-        Roids.Print("[no][de]buff condition does not have a target!")
+        -- Roids.Print("[no][de]buff condition does not have a target!")
         return false
     end
     if not Roids.has_superwow then
