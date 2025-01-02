@@ -894,19 +894,19 @@ Roids.Keywords = {
     end,
     
     attacks = function(conditionals)
-        return UnitIsUnit("targettarget", conditionals.attacks);
+        return And(conditionals.attacks,function (v) return UnitIsUnit("targettarget", v) end)
     end,
     
     noattacks = function(conditionals)
-        return not UnitIsUnit("targettarget", conditionals.noattacks);
+        return And(conditionals.attacks,function (v) return not UnitIsUnit("targettarget", v) end)
     end,
     
     isplayer = function(conditionals)
-        return UnitIsPlayer(conditionals.isplayer);
+        return And(conditionals.isplayer,function (v) return UnitIsPlayer(v) end)
     end,
     
     isnpc = function(conditionals)
-        return not UnitIsPlayer(conditionals.isnpc);
+        return And(conditionals.isnpc,function (v) return not UnitIsPlayer(v) end)
     end,
 
     hasPet = function(conditionals)
