@@ -395,6 +395,7 @@ end
 -- Searches for the given itemName in the player's iventory
 -- itemName: The name/id of the item to look for
 -- returns: The bag number and the slot number if the item has been found. nil otherwhise
+local items_table = {}
 function Roids.FindItem(itemName)
     -- just in case, prob not neccesary given where FindItem is used
     local itemName = string.gsub(itemName, "_", " ");
@@ -416,14 +417,29 @@ function Roids.FindItem(itemName)
         end
     end
 
-    for i = 0, 4 do
-        for j = 1, GetContainerNumSlots(i) do
-            local l = GetContainerItemLink(i,j)
-            if l then
-                local _,_,full_itemId,itemId = string.find(l,"(item:(%d+):%d+:%d+:%d+)")
+    -- check stored table, micro-optimization not rly needed probably tbh
+    if items_table[itemName] then
+        local link = GetContainerItemLink(items_table[itemName].bag,items_table[itemName].slot)
+        if link then
+            local _,_,full_itemId,itemId = string.find(link,"(item:(%d+):%d+:%d+:%d+)")
+            local name,_link,_,_lvl,_type,subtype = GetItemInfo(full_itemId)
+            if itemId and itemId == itemName or itemName == name then
+                return items_table[itemName].bag, items_table[itemName].slot;
+            end
+        end
+    end
+
+    -- no item stored? search
+    for bag = 0, 4 do
+        for slot = 1, GetContainerNumSlots(bag) do
+            local link = GetContainerItemLink(bag,slot)
+            if link then
+                local _,_,full_itemId,itemId = string.find(link,"(item:(%d+):%d+:%d+:%d+)")
                 local name,_link,_,_lvl,_type,subtype = GetItemInfo(full_itemId)
                 if itemId and itemId == itemName or itemName == name then
-                    return i, j;
+                    items_table[itemName] = items_table[itemName] or {}
+                    items_table[itemName].bag,items_table[itemName].slot = bag,slot
+                    return bag, slot;
                 end
             end
         end

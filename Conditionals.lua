@@ -506,6 +506,7 @@ function Roids.GetInventoryCooldownByName(itemName)
     return nil
 end
 
+-- TODO, this should not check for new cache hits unless a bag_update event has fired since last scan
 -- Returns the cooldown of the given itemName in the player's bags or nil if no such item was found
 function Roids.GetContainerItemCooldownByName(itemName)
     local function CheckItem(bag,slot)
