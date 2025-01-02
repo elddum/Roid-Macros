@@ -133,7 +133,7 @@ function Roids.ValidateAura(aura_data, isbuff, unit)
     elseif limit == 0 then
         return stack_count < amount
     else
-        return true
+        return stack_count > 0
     end
 end
 
@@ -430,7 +430,7 @@ function Roids.ValidatePlayerAura(aura_data,debuff)
         until aura_ix == -1
     end
 
-    data = nil
+    local data = 0
     if isTimeCheck then
         data = rem
     else
@@ -442,7 +442,7 @@ function Roids.ValidatePlayerAura(aura_data,debuff)
     elseif limit == 0 then
         return data < amount
     else
-        return true
+        return data > 0
     end
 end
 
