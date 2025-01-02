@@ -607,10 +607,13 @@ function Roids.CheckReactiveAbility(spellName)
     end
     for actionSlot = 1, 120 do
         local tex = GetActionTexture(actionSlot)
-        local r,was_hit = CheckAction(tex,spellName,actionSlot)
-        if was_hit then
-            reactive[spellName] = actionSlot
-            return r
+        local _,c = UnitClass("player")
+        if tex and not (reactives[string.lower(tex)] == "counterattack" and c == "WARRIOR") then
+            local r,was_hit = CheckAction(tex,spellName,actionSlot)
+            if was_hit then
+                reactive[spellName] = actionSlot
+                return r
+            end
         end
     end
     Roids.Print(spellName .. " not found on action bars, or isn't an implemented reactive.")
