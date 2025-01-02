@@ -81,6 +81,10 @@ function Roids.ValidateAura(aura_data, isbuff, unit)
         Roids.Print("[no][de]buff condition does not have a target!")
         return false
     end
+    if not Roids.has_superwow then
+        Roids.Print("'buff/debuff' conditional requires SuperWoW")
+        return false
+    end
     local limit,amount
     local name = aura_data
     if type(aura_data) == "table" then
@@ -365,6 +369,10 @@ function Roids.ValidateCooldown(cooldown_data)
 end
 
 function Roids.ValidatePlayerAura(aura_data,debuff)
+    if not Roids.has_superwow then
+        Roids.Print("'mybuff/mydebuff' conditional requires SuperWoW")
+        return
+    end
     local limit,amount
     local name = aura_data
     local isTimeCheck = nil
@@ -494,6 +502,7 @@ function Roids.GetInventoryCooldownByName(itemName)
     return nil
 end
 
+-- TODO, this should not check for new cache hits unless a bag_update event has fired since last scan
 -- Returns the cooldown of the given itemName in the player's bags or nil if no such item was found
 function Roids.GetContainerItemCooldownByName(itemName)
     local function CheckItem(bag,slot)
@@ -548,16 +557,18 @@ local reactives = {
     ["interface\\icons\\ability_warrior_revenge"] = "revenge", -- war
     ["interface\\icons\\ability_meleedamage"] = "overpower", -- war
     ["interface\\icons\\ability_warrior_challange"] = "riposte", -- rogue
-    ["interface\\icons\\ability_hunter_swiftstrike"] = "mongoose bite", -- hunter
+    ["interface\\icons\\ability_hunter_swiftstrike"] = "mongoose_bite", -- hunter
     ["interface\\icons\\ability_warrior_challange"] = "counterattack", -- hunter
+    ["interface\\icons\\ability_warrior_riposte"] = "counterattack", -- twow 1.17.2 war
+    ["interface\\icons\\inv_enchant_essencemysticallarge"] = "arcane_surge",
 }
 
 -- store found reactive id's, why scan every slot every press
 local reactive = {}
 function Roids.CheckReactiveAbility(spellName)
+    spellName = string.lower(spellName)
     local function CheckAction(tex,spellName,actionSlot)
         if tex and spellName and actionSlot then
-            spellName = string.lower(spellName)
             tex = string.lower(tex)
             for spell,spell_texture in pairs(reactives) do
                 if reactives[tex] == spellName then
@@ -589,7 +600,7 @@ function Roids.CheckReactiveAbility(spellName)
             return r
         end
     end
-    Roids.Print(spellName .. " not found on action bars!")
+    Roids.Print(spellName .. " not found on action bars, or isn't an implemented reactive.")
     return false
 end
 
@@ -854,11 +865,12 @@ Roids.Keywords = {
     end,
     
     channeled = function(conditionals)
-        return Roids.CurrentSpell.spellName ~= "";
+        return Roids.CurrentSpell.type == "channeled";
     end,
     
     nochanneled = function(conditionals)
-        return Roids.CurrentSpell.spellName == "";
+        return Roids.CurrentSpell.type ~= "channeled"
+        -- return Roids.CurrentSpell.spellName == "";
     end,
     
     attacks = function(conditionals)

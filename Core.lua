@@ -245,7 +245,7 @@ function Roids.DoWithConditionals(msg, hook, fixEmptyTargetFunc, targetBeforeAct
     
     -- No conditionals. Just exit.
     if not conditionals then
-        if not msg then
+        if not msg then -- if not even an empty string
             return false;
         else
             if string.sub(msg, 1, 1) == "{" and string.sub(msg, -1) == "}" then
@@ -262,7 +262,7 @@ function Roids.DoWithConditionals(msg, hook, fixEmptyTargetFunc, targetBeforeAct
             return true;
         end
     end
-    
+
     if conditionals.target == "mouseover" then
         if not UnitExists("mouseover") then
             conditionals.target = Roids.mouseoverUnit;
@@ -271,14 +271,14 @@ function Roids.DoWithConditionals(msg, hook, fixEmptyTargetFunc, targetBeforeAct
             return false;
         end
     end
-    
+
     local needRetarget = false;
     if fixEmptyTargetFunc then
         needRetarget = fixEmptyTargetFunc(conditionals, msg, hook)
     end
-    
+
     Roids.SetHelp(conditionals);
-    
+
     if conditionals.target == "focus" then
         if UnitExists("target") and UnitName("target") == Roids.GetFocusName() then
             conditionals.target = "target";
@@ -291,7 +291,7 @@ function Roids.DoWithConditionals(msg, hook, fixEmptyTargetFunc, targetBeforeAct
             needRetarget = true;
         end
     end
-    
+
     for k, v in pairs(conditionals) do
         if not Roids.Keywords[k] or not Roids.Keywords[k](conditionals) then
             if needRetarget then
@@ -318,7 +318,7 @@ function Roids.DoWithConditionals(msg, hook, fixEmptyTargetFunc, targetBeforeAct
             needRetarget = false;
         end
     end
-    
+
     local result = true;
     if string.sub(msg, 1, 1) == "{" and string.sub(msg, -1) == "}" then
         if string.sub(msg, 2, 2) == "\"" and string.sub(msg, -2,-2) == "\"" then
@@ -337,7 +337,7 @@ function Roids.DoWithConditionals(msg, hook, fixEmptyTargetFunc, targetBeforeAct
     if needRetarget then
         TargetLastTarget();
     end
-    
+
     return result;
 end
 
@@ -384,7 +384,7 @@ end
 function Roids.DoPetAttack(msg)
     local handled = false;
     for k, v in pairs(Roids.splitStringIgnoringQuotes(msg)) do
-        if Roids.DoWithConditionals(v, nil, Roids.FixEmptyTarget, not Roids.has_superwow, PetAttack) then
+        if Roids.DoWithConditionals(v, PetAttack, Roids.FixEmptyTarget, true, PetAttack) then
             handled = true;
             break;
         end
@@ -395,6 +395,7 @@ end
 -- Searches for the given itemName in the player's iventory
 -- itemName: The name/id of the item to look for
 -- returns: The bag number and the slot number if the item has been found. nil otherwhise
+local items_table = {}
 function Roids.FindItem(itemName)
     -- just in case, prob not neccesary given where FindItem is used
     local itemName = string.gsub(itemName, "_", " ");
@@ -404,26 +405,41 @@ function Roids.FindItem(itemName)
     for i = 0, 19 do
         slotLink = GetInventoryItemLink("player",i)
         if slotLink then
-            local _,_,itemId = string.find(slotLink,"item:(%d+)")
+            local _,_,full_itemId,itemId = string.find(slotLink,"(item:(%d+):%d+:%d+:%d+)")
             if itemName == itemId then
                 return -i
             end
             -- local gearName = string.gsub(itemId, "_", " ");
-            local name,_link,_,_lvl,_type,subtype = GetItemInfo(itemId)
+            local name,_link,_,_lvl,_type,subtype = GetItemInfo(full_itemId)
             if name == itemName then
                 return -i
             end
         end
     end
 
-    for i = 0, 4 do
-        for j = 1, GetContainerNumSlots(i) do
-            local l = GetContainerItemLink(i,j)
-            if l then
-                _,_,itemId = string.find(l,"item:(%d+)")
-                local name,_link,_,_lvl,_type,subtype = GetItemInfo(itemId)
+    -- check stored table, micro-optimization not rly needed probably tbh
+    if items_table[itemName] then
+        local link = GetContainerItemLink(items_table[itemName].bag,items_table[itemName].slot)
+        if link then
+            local _,_,full_itemId,itemId = string.find(link,"(item:(%d+):%d+:%d+:%d+)")
+            local name,_link,_,_lvl,_type,subtype = GetItemInfo(full_itemId)
+            if itemId and itemId == itemName or itemName == name then
+                return items_table[itemName].bag, items_table[itemName].slot;
+            end
+        end
+    end
+
+    -- no item stored? search
+    for bag = 0, 4 do
+        for slot = 1, GetContainerNumSlots(bag) do
+            local link = GetContainerItemLink(bag,slot)
+            if link then
+                local _,_,full_itemId,itemId = string.find(link,"(item:(%d+):%d+:%d+:%d+)")
+                local name,_link,_,_lvl,_type,subtype = GetItemInfo(full_itemId)
                 if itemId and itemId == itemName or itemName == name then
-                    return i, j;
+                    items_table[itemName] = items_table[itemName] or {}
+                    items_table[itemName].bag,items_table[itemName].slot = bag,slot
+                    return bag, slot;
                 end
             end
         end
@@ -465,6 +481,7 @@ function Roids.DoUse(msg)
         if not bag or not slot then
             return;
         end
+        if (MerchantFrame:IsVisible() and MerchantFrame.selectedTab == 1) then return end
         UseContainerItem(bag, slot)
     end
 
@@ -475,7 +492,10 @@ function Roids.DoUse(msg)
         if checkFor(subject,BOOKTYPE_PET) or checkFor(subject,BOOKTYPE_SPELL) then
             handled = Roids.DoWithConditionals(v, Roids.Hooks.CAST_SlashCmd, Roids.FixEmptyTarget, not Roids.has_superwow, CastSpellByName)
         else
-            handled = Roids.DoWithConditionals(v, action, Roids.FixEmptyTarget, true, action)
+            -- TODO false needs checking here, for things like juju power we have an issue
+            -- we need to target the spell but targeting before cast counts as a target change
+            -- and this is potentially bad for things like the OH swing timer reset bug
+            handled = Roids.DoWithConditionals(v, action, Roids.FixEmptyTarget, false, action)
         end
         if handled then break end
     end
@@ -495,7 +515,7 @@ function Roids.DoEquipOffhand(msg)
     end
     
     for k, v in pairs(Roids.splitStringIgnoringQuotes(msg)) do
-        if Roids.DoWithConditionals(v, action, Roids.FixEmptyTarget, not Roids.has_superwow, action) then
+        if Roids.DoWithConditionals(v, action, Roids.FixEmptyTarget, false, action) then
             handled = true;
             break;
         end
@@ -515,7 +535,7 @@ function Roids.DoUnshift(msg)
     
     for k, v in pairs(Roids.splitStringIgnoringQuotes(msg)) do
         handled = false;
-        if Roids.DoWithConditionals(v, action, Roids.FixEmptyTarget, not Roids.has_superwow, action) then
+        if Roids.DoWithConditionals(v, action, Roids.FixEmptyTarget, false, action) then
             handled = true;
             break;
         end
@@ -656,6 +676,7 @@ function Roids.Frame:PLAYER_TARGET_CHANGED()
     end
     Roids.CurrentSpell.autoAttack = false;
     Roids.CurrentSpell.autoAttackLock = false
+    -- print("tarchange")
 end
 
 -- just a secondary check
