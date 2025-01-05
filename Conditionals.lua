@@ -105,10 +105,10 @@ function Roids.ValidateAura(aura_data, isbuff, unit)
         local i = 1
         local id = 0
         while id do
-            _,stacks,_,id = UnitDebuff(unit,i)
+            local _,stacks,_,id = UnitDebuff(unit,i)
             if id and id < -1 then id = id + 65536 end
             if name == SpellInfo(id) then
-                stack_count = stacks
+                stack_count = stacks or 1
                 break
             end
             i = i + 1
@@ -118,10 +118,10 @@ function Roids.ValidateAura(aura_data, isbuff, unit)
         local i = 1
         local id = 0
         while id do
-            _,stacks,id = UnitBuff(unit,i)
+            local _,stacks,id = UnitBuff(unit,i)
             if id and id < -1 then id = id + 65536 end
             if name == SpellInfo(id) then
-                stack_count = stacks
+                stack_count = stacks or 1
                 break
             end
             i = i + 1
@@ -133,7 +133,7 @@ function Roids.ValidateAura(aura_data, isbuff, unit)
     elseif limit == 0 then
         return stack_count < amount
     else
-        return stack_count > 0
+        return stack_count ~= 0
     end
 end
 
@@ -419,9 +419,10 @@ function Roids.ValidatePlayerAura(aura_data,debuff)
             ix = ix + 1
             if aura_ix ~= -1 then
                 local bid = GetPlayerBuffID(aura_ix)
-                bid = (bid < -1) and bid + 65536 or bid
+                bid = (bid < -1) and (bid + 65536) or bid
                 if SpellInfo(bid) == name then
-                    _,stacks,_,_ = UnitDebuff("player",aura_ix)
+                    _,stacks = UnitDebuff("player",aura_ix)
+                    stacks = stacks or 1
                     rem = GetPlayerBuffTimeLeft(aura_ix)
                     break
                 end
@@ -433,9 +434,10 @@ function Roids.ValidatePlayerAura(aura_data,debuff)
             ix = ix + 1
             if aura_ix ~= -1 then
                 local bid = GetPlayerBuffID(aura_ix)
-                bid = (bid < -1) and bid + 65536 or bid
+                bid = (bid < -1) and (bid + 65536) or bid
                 if SpellInfo(bid) == name then
-                    _,stacks,_,_ = UnitBuff("player",aura_ix)
+                    _,stacks = UnitBuff("player",ix)
+                    stacks = stacks or 1
                     rem = GetPlayerBuffTimeLeft(aura_ix)
                     break
                 end
@@ -455,7 +457,7 @@ function Roids.ValidatePlayerAura(aura_data,debuff)
     elseif limit == 0 then
         return data < amount
     else
-        return data > 0
+        return data ~= 0
     end
 end
 
@@ -770,10 +772,6 @@ Roids.Keywords = {
         end)
     end,
 
-    dead = function(conditionals)
-        return UnitIsDeadOrGhost(conditionals.target);
-    end,
-
     reactive = function(conditionals)
         return And(conditionals.reactive,function (v)
             return Roids.CheckReactiveAbility(v)
@@ -784,6 +782,10 @@ Roids.Keywords = {
         return And(conditionals.noreactive,function (v)
             return not Roids.CheckReactiveAbility(v)
         end)
+    end,
+
+    dead = function(conditionals)
+        return UnitIsDeadOrGhost(conditionals.target);
     end,
 
     nodead = function(conditionals)
