@@ -576,6 +576,7 @@ Roids.Frame:RegisterEvent("PLAYER_LEAVE_COMBAT");
 Roids.Frame:RegisterEvent("PLAYER_TARGET_CHANGED");
 Roids.Frame:RegisterEvent("START_AUTOREPEAT_SPELL");
 Roids.Frame:RegisterEvent("STOP_AUTOREPEAT_SPELL");
+Roids.Frame:RegisterEvent("ACTIONBAR_SLOT_CHANGED");
 -- Roids.Frame:RegisterEvent("UI_ERROR_MESSAGE");
 
 Roids.Frame:SetScript("OnEvent", function()
@@ -683,6 +684,10 @@ end
 -- function Roids.Frame:PLAYER_REGEN_ENABLED()
 --     Roids.CurrentSpell.autoAttack = false;
 -- end
+
+function Roids.Frame:ACTIONBAR_SLOT_CHANGED(slot)
+    Roids.live_reactives = {} -- clear stored reactives
+end
 
 function Roids.Frame:START_AUTOREPEAT_SPELL(...)
     local _, className = UnitClass("player");

@@ -100,32 +100,29 @@ function Roids.ValidateAura(aura_data, isbuff, unit)
     name = string.gsub(name, "_", " ")
 
     local stack_count = 0
-    if not isbuff then
-        -- search debuffs
-        local i = 1
-        local id = 0
-        while id do
-            local _,stacks,_,id = UnitDebuff(unit,i)
-            if id and id < -1 then id = id + 65536 end
-            if name == SpellInfo(id) then
-                stack_count = stacks or 1
-                break
-            end
-            i = i + 1
+    local i = 1
+    local id
+    
+    -- Function to get buffs or debuffs based on `isbuff`
+    local function getAura(unit, index)
+        if isbuff then
+            local _, stacks, aura_id = UnitBuff(unit, index)
+            return stacks, aura_id
+        else
+            local _, stacks, _, aura_id = UnitDebuff(unit, index)
+            return stacks, aura_id
         end
-    else
-        -- search buffs
-        local i = 1
-        local id = 0
-        while id do
-            local _,stacks,id = UnitBuff(unit,i)
-            if id and id < -1 then id = id + 65536 end
-            if name == SpellInfo(id) then
-                stack_count = stacks or 1
-                break
-            end
-            i = i + 1
+    end
+    
+    while true do
+        local stacks, aura_id = getAura(unit, i)
+        if not aura_id then break end  -- End of buffs/debuffs list
+        if aura_id < -1 then aura_id = aura_id + 65536 end
+        if name == SpellInfo(aura_id) then
+            stack_count = stacks or 1
+            break
         end
+        i = i + 1
     end
 
     if limit == 1 then
@@ -579,7 +576,7 @@ local reactives = {
 }
 
 -- store found reactive id's, why scan every slot every press
-local reactive = {}
+Roids.live_reactives = {}
 function Roids.CheckReactiveAbility(spellName)
     spellName = string.lower(spellName)
     local function CheckAction(tex,spellName,actionSlot)
@@ -600,9 +597,9 @@ function Roids.CheckReactiveAbility(spellName)
         return false,false
     end
 
-    if reactive[spellName] then
-        local tex = GetActionTexture(reactive[spellName])
-        local r,was_hit = CheckAction(tex,spellName,reactive[spellName])
+    if Roids.live_reactives[spellName] then
+        local tex = GetActionTexture(Roids.live_reactives[spellName])
+        local r,was_hit = CheckAction(tex,spellName,Roids.live_reactives[spellName])
         if was_hit then
             return r
         end
@@ -613,7 +610,7 @@ function Roids.CheckReactiveAbility(spellName)
         if tex and not (reactives[string.lower(tex)] == "counterattack" and c == "WARRIOR") then
             local r,was_hit = CheckAction(tex,spellName,actionSlot)
             if was_hit then
-                reactive[spellName] = actionSlot
+                Roids.live_reactives[spellName] = actionSlot
                 return r
             end
         end
