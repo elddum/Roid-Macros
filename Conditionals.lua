@@ -408,20 +408,32 @@ function Roids.ValidatePlayerAura(aura_data,isbuff)
     local aura_ix = -1
     local rem = 0
     local stack_count = 0
-    repeat
-        aura_ix = GetPlayerBuff(ix,isbuff and "HELPFUL" or "HARMFUL")
-        ix = ix + 1
-        if aura_ix ~= -1 then
-            local bid = GetPlayerBuffID(aura_ix)
-            bid = (bid < -1) and (bid + 65536) or bid
-            if SpellInfo(bid) == name then
-                local stacks, aura_id = getAura("player", aura_ix, isbuff)
-                stack_count = stacks or 1
-                rem = GetPlayerBuffTimeLeft(aura_ix)
-                break
+    local i = 1
+    while true do
+        local stacks, aura_id = getAura("player", i, isbuff)
+        if not aura_id then break end  -- End of buffs/debuffs list
+        if aura_id < -1 then aura_id = aura_id + 65536 end
+        if name == SpellInfo(aura_id) then
+            stack_count = stacks or 1
+            if isTimeCheck then
+                local aura_ix = -1
+                local i2 = 0
+                while true do
+                    aura_ix = GetPlayerBuff(i2,isbuff and "HELPFUL|PASSIVE" or "HARMFUL")
+                    if aura_ix == -1 then break end
+                    local bid = GetPlayerBuffID(aura_ix)
+                    if bid < -1 then bid = bid + 65536 end
+                    if aura_id == bid then
+                        rem = GetPlayerBuffTimeLeft(aura_ix)
+                        break
+                    end
+                    i2 = i2 + 1
+                end
             end
+            break
         end
-    until aura_ix == -1
+        i = i + 1
+    end
 
     local data = 0
     if isTimeCheck then
