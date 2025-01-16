@@ -12,6 +12,17 @@ function print(msg)
     DEFAULT_CHAT_FRAME:AddMessage(msg)
 end
 
+-- Function to get buffs or debuffs based on `isbuff`
+local function getAura(unit, index, buff)
+    if buff then
+        local _, stacks, aura_id = UnitBuff(unit, index)
+        return stacks, aura_id
+    else
+        local _, stacks, _, aura_id = UnitDebuff(unit, index)
+        return stacks, aura_id
+    end
+end
+
 -- Validates that the given target is either friend (if [help]) or foe (if [harm])
 -- target: The unit id to check
 -- help: Optional. If set to 1 then the target must be friendly. If set to 0 it must be an enemy.
@@ -101,21 +112,8 @@ function Roids.ValidateAura(aura_data, isbuff, unit)
 
     local stack_count = 0
     local i = 1
-    local id
-    
-    -- Function to get buffs or debuffs based on `isbuff`
-    local function getAura(unit, index)
-        if isbuff then
-            local _, stacks, aura_id = UnitBuff(unit, index)
-            return stacks, aura_id
-        else
-            local _, stacks, _, aura_id = UnitDebuff(unit, index)
-            return stacks, aura_id
-        end
-    end
-    
     while true do
-        local stacks, aura_id = getAura(unit, i)
+        local stacks, aura_id = getAura(unit, i, isbuff)
         if not aura_id then break end  -- End of buffs/debuffs list
         if aura_id < -1 then aura_id = aura_id + 65536 end
         if name == SpellInfo(aura_id) then
@@ -378,7 +376,7 @@ function Roids.ValidateCooldown(cooldown_data)
     end
 end
 
-function Roids.ValidatePlayerAura(aura_data,debuff)
+function Roids.ValidatePlayerAura(aura_data,isbuff)
     if not Roids.has_superwow then
         Roids.Print("'mybuff/mydebuff' conditional requires SuperWoW")
         return
@@ -409,44 +407,27 @@ function Roids.ValidatePlayerAura(aura_data,debuff)
     local ix = 0
     local aura_ix = -1
     local rem = 0
-    local stacks = 0
-    if debuff then
-        repeat
-            aura_ix = GetPlayerBuff(ix,"HARMFUL")
-            ix = ix + 1
-            if aura_ix ~= -1 then
-                local bid = GetPlayerBuffID(aura_ix)
-                bid = (bid < -1) and (bid + 65536) or bid
-                if SpellInfo(bid) == name then
-                    _,stacks = UnitDebuff("player",aura_ix)
-                    stacks = stacks or 1
-                    rem = GetPlayerBuffTimeLeft(aura_ix)
-                    break
-                end
+    local stack_count = 0
+    repeat
+        aura_ix = GetPlayerBuff(ix,isbuff and "HELPFUL" or "HARMFUL")
+        ix = ix + 1
+        if aura_ix ~= -1 then
+            local bid = GetPlayerBuffID(aura_ix)
+            bid = (bid < -1) and (bid + 65536) or bid
+            if SpellInfo(bid) == name then
+                local stacks, aura_id = getAura("player", aura_ix, isbuff)
+                stack_count = stacks or 1
+                rem = GetPlayerBuffTimeLeft(aura_ix)
+                break
             end
-        until aura_ix == -1
-    else
-        repeat
-            aura_ix = GetPlayerBuff(ix,"HELPFUL")
-            ix = ix + 1
-            if aura_ix ~= -1 then
-                local bid = GetPlayerBuffID(aura_ix)
-                bid = (bid < -1) and (bid + 65536) or bid
-                if SpellInfo(bid) == name then
-                    _,stacks = UnitBuff("player",ix)
-                    stacks = stacks or 1
-                    rem = GetPlayerBuffTimeLeft(aura_ix)
-                    break
-                end
-            end
-        until aura_ix == -1
-    end
+        end
+    until aura_ix == -1
 
     local data = 0
     if isTimeCheck then
         data = rem
     else
-        data = stacks
+        data = stack_count
     end
 
     if limit == 1 then
@@ -827,19 +808,19 @@ Roids.Keywords = {
     end,
 
     mybuff = function(conditionals)
-        return And(conditionals.mybuff,function (v) return Roids.ValidatePlayerAura(v,false) end)
+        return And(conditionals.mybuff,function (v) return Roids.ValidatePlayerAura(v,true) end)
     end,
 
     nomybuff = function(conditionals)
-        return And(conditionals.nomybuff,function (v) return not Roids.ValidatePlayerAura(v,false) end)
+        return And(conditionals.nomybuff,function (v) return not Roids.ValidatePlayerAura(v,true) end)
     end,
 
     mydebuff = function(conditionals)
-        return And(conditionals.mydebuff,function (v) return Roids.ValidatePlayerAura(v,true) end)
+        return And(conditionals.mydebuff,function (v) return Roids.ValidatePlayerAura(v,false) end)
     end,
 
     nomydebuff = function(conditionals)
-        return And(conditionals.nomydebuff,function (v) return not Roids.ValidatePlayerAura(v,true) end)
+        return And(conditionals.nomydebuff,function (v) return not Roids.ValidatePlayerAura(v,false) end)
     end,
         
     combo = function(conditionals)
