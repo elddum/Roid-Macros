@@ -345,7 +345,7 @@ function Roids.ValidateCreatureType(creatureType, target)
     return string.lower(creatureType) == string.lower(targetType) or creatureType == englishType;
 end
 
--- this should technically keep a table of cooldowns it's seen and when, in case of something like GetContainerItemCooldownByName and you run out of the item
+-- TODO this should technically keep a table of cooldowns it's seen and when, in case of something like GetContainerItemCooldownByName and you run out of the item
 function Roids.ValidateCooldown(cooldown_data)
     local limit,amount
     local name = cooldown_data
@@ -404,11 +404,7 @@ function Roids.ValidatePlayerAura(aura_data,isbuff)
     end
     name = string.gsub(name, "_", " ")
 
-    local ix = 0
-    local aura_ix = -1
-    local rem = 0
-    local stack_count = 0
-    local i = 1
+    local rem,stack_count,i = 0,0,1
     while true do
         local stacks, aura_id = getAura("player", i, isbuff)
         if not aura_id then break end  -- End of buffs/debuffs list
@@ -600,7 +596,7 @@ function Roids.CheckReactiveAbility(spellName)
     for actionSlot = 1, 120 do
         local tex = GetActionTexture(actionSlot)
         local _,c = UnitClass("player")
-        if tex and not (reactives[string.lower(tex)] == "counterattack" and c == "WARRIOR") then
+        if tex and not (string.lower(tex) == "interface\\icons\\ability_warrior_challange" and c == "WARRIOR") then
             local r,was_hit = CheckAction(tex,spellName,actionSlot)
             if was_hit then
                 Roids.live_reactives[spellName] = actionSlot
