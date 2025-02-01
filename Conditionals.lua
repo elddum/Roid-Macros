@@ -554,7 +554,7 @@ local function Or(t,func)
     return false
 end
 
-local reactives = {
+Roids.reactives = {
     ["interface\\icons\\ability_warrior_revenge"] = "revenge", -- war
     ["interface\\icons\\ability_meleedamage"] = "overpower", -- war
     ["interface\\icons\\ability_warrior_challange"] = "riposte", -- rogue
@@ -571,8 +571,8 @@ function Roids.CheckReactiveAbility(spellName)
     local function CheckAction(tex,spellName,actionSlot)
         if tex and spellName and actionSlot then
             tex = string.lower(tex)
-            for spell,spell_texture in pairs(reactives) do
-                if reactives[tex] == spellName then
+            for spell,spell_texture in pairs(Roids.reactives) do
+                if Roids.reactives[tex] == spellName then
                     local isUsable = IsUsableAction(actionSlot)
                     local start, duration = GetActionCooldown(actionSlot)
                     if isUsable and (start == 0 or duration == 1.5) then -- 1.5 just means gcd is active
@@ -586,25 +586,36 @@ function Roids.CheckReactiveAbility(spellName)
         return false,false
     end
 
-    if Roids.live_reactives[spellName] then
-        local tex = GetActionTexture(Roids.live_reactives[spellName])
-        local r,was_hit = CheckAction(tex,spellName,Roids.live_reactives[spellName])
-        if was_hit then
-            return r
-        end
-    end
-    for actionSlot = 1, 120 do
-        local tex = GetActionTexture(actionSlot)
-        local _,c = UnitClass("player")
-        if tex and not (string.lower(tex) == "interface\\icons\\ability_warrior_challange" and c == "WARRIOR") then
-            local r,was_hit = CheckAction(tex,spellName,actionSlot)
+    -- check if we've search already
+    if Roids.live_reactives[spellName] ~= -1 then
+        -- check if we cached it
+        if Roids.live_reactives[spellName] then
+            local tex = GetActionTexture(Roids.live_reactives[spellName])
+            local r,was_hit = CheckAction(tex,spellName,Roids.live_reactives[spellName])
             if was_hit then
-                Roids.live_reactives[spellName] = actionSlot
+                -- print(tostring(r).."1 "..spellName)
                 return r
             end
         end
+        -- search for it
+        for actionSlot = 1, 120 do
+            local tex = GetActionTexture(actionSlot)
+            local _,c = UnitClass("player")
+            if tex and not GetActionText(actionSlot) and not (string.lower(tex) == "interface\\icons\\ability_warrior_challange" and c == "WARRIOR") then
+                local r,was_hit = CheckAction(tex,spellName,actionSlot)
+                if was_hit then
+                    Roids.live_reactives[spellName] = actionSlot
+                    -- print(tostring(r).."2 "..spellName)
+                    return r
+                end
+            end
+            -- wasn't on bars, ignore the reactive until action bars change
+        end
+        Roids.live_reactives[spellName] = -1
+        Roids.Print(spellName .. " not found on action bars, or isn't an implemented reactive.")
+    -- else
+        -- print(spellName.." is -1")
     end
-    Roids.Print(spellName .. " not found on action bars, or isn't an implemented reactive.")
     return false
 end
 
@@ -859,7 +870,6 @@ Roids.Keywords = {
         return And(conditionals.myhp,function (v) return Roids.ValidateHp("player", v.bigger, v.amount) end)
     end,
     
-    -- TODO allow multiple types
     type = function(conditionals)
         return And(conditionals.type, function (v) return Roids.ValidateCreatureType(v, conditionals.target) end)
     end,

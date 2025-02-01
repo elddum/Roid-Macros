@@ -685,8 +685,26 @@ end
 --     Roids.CurrentSpell.autoAttack = false;
 -- end
 
+-- Did a reactive slot change? clear it
 function Roids.Frame:ACTIONBAR_SLOT_CHANGED(slot)
-    Roids.live_reactives = {} -- clear stored reactives
+    local tex = string.lower(GetActionTexture(slot) or "")
+
+    -- slot uses the icon of a reactive, so clear that reactive so it can be rechecked
+    -- this clears -1's for instance, to trigger a re-search
+    -- ignore macros
+    if not GetActionText(slot) and Roids.reactives[tex] then
+        if Roids.live_reactives[Roids.reactives[tex]] then print(Roids.live_reactives[Roids.reactives[tex]]) end
+        Roids.live_reactives[Roids.reactives[tex]] = nil
+        return
+    end
+
+    -- search to see if this slot was a reactive, clear if it was
+    for spell,s in Roids.live_reactives do
+        if s == slot then
+            Roids.live_reactives[spell] = nil
+            return
+        end
+    end
 end
 
 function Roids.Frame:START_AUTOREPEAT_SPELL(...)
