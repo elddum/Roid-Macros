@@ -688,13 +688,14 @@ end
 -- Did a reactive slot change? clear it
 function Roids.Frame:ACTIONBAR_SLOT_CHANGED(slot)
     local tex = string.lower(GetActionTexture(slot) or "")
+    local _,class = UnitClass("player")
+    local reactive_name = Roids.reactives[class][tex]
 
     -- slot uses the icon of a reactive, so clear that reactive so it can be rechecked
     -- this clears -1's for instance, to trigger a re-search
     -- ignore macros
-    if not GetActionText(slot) and Roids.reactives[tex] then
-        if Roids.live_reactives[Roids.reactives[tex]] then print(Roids.live_reactives[Roids.reactives[tex]]) end
-        Roids.live_reactives[Roids.reactives[tex]] = nil
+    if not GetActionText(slot) and reactive_name then
+        Roids.live_reactives[reactive_name] = nil
         return
     end
 

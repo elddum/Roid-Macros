@@ -554,25 +554,35 @@ local function Or(t,func)
     return false
 end
 
+-- TODO check raptor strike and mongoose for 1.17.2
 Roids.reactives = {
-    ["interface\\icons\\ability_warrior_revenge"] = "revenge", -- war
-    ["interface\\icons\\ability_meleedamage"] = "overpower", -- war
-    ["interface\\icons\\ability_warrior_challange"] = "riposte", -- rogue
-    ["interface\\icons\\ability_hunter_swiftstrike"] = "mongoose_bite", -- hunter
-    ["interface\\icons\\ability_warrior_challange"] = "counterattack", -- hunter
-    ["interface\\icons\\ability_warrior_riposte"] = "counterattack", -- twow 1.17.2 war
-    ["interface\\icons\\inv_enchant_essencemysticallarge"] = "arcane_surge",
+    ROGUE = {
+        ["interface\\icons\\ability_warrior_challange"] = "riposte", -- rogue
+    },
+    WARRIOR = {
+        ["interface\\icons\\ability_warrior_revenge"] = "revenge",
+        ["interface\\icons\\ability_meleedamage"] = "overpower", -- war
+        ["interface\\icons\\ability_warrior_riposte"] = "counterattack", -- twow 1.17.2 war
+    },
+    HUNTER = {
+        ["interface\\icons\\ability_warrior_challange"] = "counterattack", -- hunter
+        ["interface\\icons\\ability_hunter_swiftstrike"] = "mongoose_bite", -- hunter
+    },
+    MAGE = {
+        ["interface\\icons\\inv_enchant_essencemysticallarge"] = "arcane_surge",
+    },
 }
 
 -- store found reactive id's, why scan every slot every press
 Roids.live_reactives = {}
 function Roids.CheckReactiveAbility(spellName)
+    local _,class = UnitClass("player")
     spellName = string.lower(spellName)
     local function CheckAction(tex,spellName,actionSlot)
         if tex and spellName and actionSlot then
             tex = string.lower(tex)
-            for spell,spell_texture in pairs(Roids.reactives) do
-                if Roids.reactives[tex] == spellName then
+            for rspell_texture,rspellName in pairs(Roids.reactives[class]) do
+                if rspell_texture == tex and rspellName == spellName then
                     local isUsable = IsUsableAction(actionSlot)
                     local start, duration = GetActionCooldown(actionSlot)
                     if isUsable and (start == 0 or duration == 1.5) then -- 1.5 just means gcd is active
@@ -600,8 +610,7 @@ function Roids.CheckReactiveAbility(spellName)
         -- search for it
         for actionSlot = 1, 120 do
             local tex = GetActionTexture(actionSlot)
-            local _,c = UnitClass("player")
-            if tex and not GetActionText(actionSlot) and not (string.lower(tex) == "interface\\icons\\ability_warrior_challange" and c == "WARRIOR") then
+            if tex and not GetActionText(actionSlot) then
                 local r,was_hit = CheckAction(tex,spellName,actionSlot)
                 if was_hit then
                     Roids.live_reactives[spellName] = actionSlot

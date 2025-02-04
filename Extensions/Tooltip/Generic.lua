@@ -110,6 +110,9 @@ function Roids.ParseItem(line)
 end
 
 -- todo: make this do the job /run --CastSpellByName does
+-- todo: use postal mail marking code for a DE addon
+-- TODO, how does the dressup frame work
+-- todo: oufitter black drakes/nef mode
 function Extension.PLAYER_ENTERING_WORLD()
     Roids.knownSpells = Roids.GetLearnedSpells();
     
