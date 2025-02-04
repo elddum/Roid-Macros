@@ -689,7 +689,7 @@ end
 function Roids.Frame:ACTIONBAR_SLOT_CHANGED(slot)
     local tex = string.lower(GetActionTexture(slot) or "")
     local _,class = UnitClass("player")
-    local reactive_name = Roids.reactives[class][tex]
+    local reactive_name = Roids.reactives[class] and Roids.reactives[class][tex]
 
     -- slot uses the icon of a reactive, so clear that reactive so it can be rechecked
     -- this clears -1's for instance, to trigger a re-search

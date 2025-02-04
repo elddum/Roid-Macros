@@ -17,7 +17,7 @@ function Roids.GetMacroInfo(buttonId)
     
     local name, texture, body = GetMacroInfo(GetMacroIndexByName(macroName));
     
-    return name, texture, Roids.splitString(body, "\n"), body;
+    return name, texture, Roids.splitString(body, "\n");
 end
 
 -- Returns all spells the current player has learned
@@ -109,10 +109,6 @@ function Roids.ParseItem(line)
     return true;
 end
 
--- todo: make this do the job /run --CastSpellByName does
--- todo: use postal mail marking code for a DE addon
--- TODO, how does the dressup frame work
--- todo: oufitter black drakes/nef mode
 function Extension.PLAYER_ENTERING_WORLD()
     Roids.knownSpells = Roids.GetLearnedSpells();
     
@@ -120,19 +116,16 @@ function Extension.PLAYER_ENTERING_WORLD()
         Roids.Hooks.GameTooltip_SetAction = GameTooltip.SetAction;
         
         GameTooltip.SetAction = function(this, buttonId)
-            local name, texture, body, raw_body = Roids.GetMacroInfo(buttonId);
+            local name, texture, body = Roids.GetMacroInfo(buttonId);
         
             if not name then
                 return Roids.Hooks.GameTooltip_SetAction(this, buttonId);
             end
             
-            -- for _,line in pairs(body) do
-            for line in string.gfind(raw_body, "([^\n])+") do
+            for _,line in pairs(body) do
                 if string.find(line, "^#showtooltip ") then
                     local text = string.sub(line, 14);
                     if Roids.ParseSpell(text) then
-                        -- if spell, replace with castspellbyname
-                        -- replace
                         return;
                     end
                     
@@ -143,22 +136,6 @@ function Extension.PLAYER_ENTERING_WORLD()
                     Roids.Print("Unknown Tooltip: '"..text.."'");
                 end
             end
-            -- for _,line in pairs(body) do
-            --     local _,_,s = string.find(line, "^/run%s+--CastSpellBy")
-            --     if string.find(line, "^/run%s+--CastSpellBy") then
-            --         local text = string.sub(line, 14);
-            --         if Roids.ParseSpell(text) then
-            --             -- if spell, replace with castspellbyname
-            --             return;
-            --         end
-                    
-            --         if Roids.ParseItem(text) then
-            --             return;
-            --         end
-                    
-            --         Roids.Print("Unknown Tooltip: '"..text.."'");
-            --     end
-            -- end
         end
     end
 end
