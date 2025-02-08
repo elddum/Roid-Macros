@@ -395,6 +395,7 @@ end
 -- Searches for the given itemName in the player's iventory
 -- itemName: The name/id of the item to look for
 -- returns: The bag number and the slot number if the item has been found. nil otherwhise
+local items_table = {}
 function Roids.FindItem(itemName)
     -- just in case, prob not neccesary given where FindItem is used
     local itemName = string.gsub(itemName, "_", " ");
@@ -416,14 +417,29 @@ function Roids.FindItem(itemName)
         end
     end
 
-    for i = 0, 4 do
-        for j = 1, GetContainerNumSlots(i) do
-            local l = GetContainerItemLink(i,j)
-            if l then
-                local _,_,full_itemId,itemId = string.find(l,"(item:(%d+):%d+:%d+:%d+)")
+    -- check stored table, micro-optimization not rly needed probably tbh
+    if items_table[itemName] then
+        local link = GetContainerItemLink(items_table[itemName].bag,items_table[itemName].slot)
+        if link then
+            local _,_,full_itemId,itemId = string.find(link,"(item:(%d+):%d+:%d+:%d+)")
+            local name,_link,_,_lvl,_type,subtype = GetItemInfo(full_itemId)
+            if itemId and itemId == itemName or itemName == name then
+                return items_table[itemName].bag, items_table[itemName].slot;
+            end
+        end
+    end
+
+    -- no item stored? search
+    for bag = 0, 4 do
+        for slot = 1, GetContainerNumSlots(bag) do
+            local link = GetContainerItemLink(bag,slot)
+            if link then
+                local _,_,full_itemId,itemId = string.find(link,"(item:(%d+):%d+:%d+:%d+)")
                 local name,_link,_,_lvl,_type,subtype = GetItemInfo(full_itemId)
                 if itemId and itemId == itemName or itemName == name then
-                    return i, j;
+                    items_table[itemName] = items_table[itemName] or {}
+                    items_table[itemName].bag,items_table[itemName].slot = bag,slot
+                    return bag, slot;
                 end
             end
         end
@@ -560,6 +576,7 @@ Roids.Frame:RegisterEvent("PLAYER_LEAVE_COMBAT");
 Roids.Frame:RegisterEvent("PLAYER_TARGET_CHANGED");
 Roids.Frame:RegisterEvent("START_AUTOREPEAT_SPELL");
 Roids.Frame:RegisterEvent("STOP_AUTOREPEAT_SPELL");
+Roids.Frame:RegisterEvent("ACTIONBAR_SLOT_CHANGED");
 -- Roids.Frame:RegisterEvent("UI_ERROR_MESSAGE");
 
 Roids.Frame:SetScript("OnEvent", function()
@@ -667,6 +684,29 @@ end
 -- function Roids.Frame:PLAYER_REGEN_ENABLED()
 --     Roids.CurrentSpell.autoAttack = false;
 -- end
+
+-- Did a reactive slot change? clear it
+function Roids.Frame:ACTIONBAR_SLOT_CHANGED(slot)
+    local tex = string.lower(GetActionTexture(slot) or "")
+    local _,class = UnitClass("player")
+    local reactive_name = Roids.reactives[class] and Roids.reactives[class][tex]
+
+    -- slot uses the icon of a reactive, so clear that reactive so it can be rechecked
+    -- this clears -1's for instance, to trigger a re-search
+    -- ignore macros
+    if not GetActionText(slot) and reactive_name then
+        Roids.live_reactives[reactive_name] = nil
+        return
+    end
+
+    -- search to see if this slot was a reactive, clear if it was
+    for spell,s in Roids.live_reactives do
+        if s == slot then
+            Roids.live_reactives[spell] = nil
+            return
+        end
+    end
+end
 
 function Roids.Frame:START_AUTOREPEAT_SPELL(...)
     local _, className = UnitClass("player");

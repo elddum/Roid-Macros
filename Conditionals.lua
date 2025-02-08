@@ -12,6 +12,17 @@ function print(msg)
     DEFAULT_CHAT_FRAME:AddMessage(msg)
 end
 
+-- Function to get buffs or debuffs based on `isbuff`
+local function getAura(unit, index, buff)
+    if buff then
+        local _, stacks, aura_id = UnitBuff(unit, index)
+        return stacks, aura_id
+    else
+        local _, stacks, _, aura_id = UnitDebuff(unit, index)
+        return stacks, aura_id
+    end
+end
+
 -- Validates that the given target is either friend (if [help]) or foe (if [harm])
 -- target: The unit id to check
 -- help: Optional. If set to 1 then the target must be friendly. If set to 0 it must be an enemy.
@@ -32,7 +43,7 @@ end
 -- target: The unit id to check
 -- help: Optional. If set to 1 then the target must be friendly. If set to 0 it must be an enemy
 -- returns: Whether or not the target is a viable target
-function Roids.IsValidTarget(target, help)    
+function Roids.IsValidTarget(target, help)
 	if target ~= "mouseover" then
 		if not Roids.CheckHelp(target, help) or not UnitExists(target) then
 			return false;
@@ -76,107 +87,48 @@ function Roids.CancelAura(auraName)
     end
 end
 
-local function CheckAura(auraName,isbuff,unit)
-    local i = 1
-    local id = 0
-    while id do
-        if isbuff then
-            _,_,id = UnitBuff(unit,i)
-        else
-            _,_,_,id = UnitDebuff(unit,i)
-        end
-        if id and id < -1 then id = id + 65536 end
-        auraName = string.gsub(auraName, "_"," ")
-        if auraName == SpellInfo(id) then
-            return true
-        end
-        i = i + 1
-    end
-    return false
-end
-
--- Checks whether or not the given buffName is present on the given unit's buff bar
--- buffName: The name of the buff
--- unit: The UnitID of the unit to check
--- returns: True if the buffName can be found, false otherwhise
-function Roids.HasBuffName(buffName, unit)
-    if not buffName or not unit or type(buffName) == "table" then
-        return false;
-    end
-
-    return CheckAura(buffName,true,unit)
-end
-
--- Checks whether or not the given buffName is present on the given unit's debuff bar
--- buffName: The name of the debuff
--- unit: The UnitID of the unit to check
--- returns: True if the buffName can be found, false otherwhise
-function Roids.HasDeBuffName(buffName, unit)
-    if not buffName or not unit or type(buffName) == "table" then
-        return false;
-    end
-
-    return CheckAura(buffName,false,unit) or CheckAura(buffName,true,unit)
-end
-
 function Roids.ValidateAura(aura_data, isbuff, unit)
-    if not unit then return false end
+    if not unit then
+        -- Roids.Print("[no][de]buff condition does not have a target!")
+        return false
+    end
     if not Roids.has_superwow then
         Roids.Print("'buff/debuff' conditional requires SuperWoW")
-        return
+        return false
     end
     local limit,amount
     local name = aura_data
     if type(aura_data) == "table" then
         limit = aura_data.bigger
-        _,_,amount = string.find(aura_data.amount,"^#(%d+)") -- TODO check this for sunder
         name = aura_data.name
-        amount = tonumber(amount or aura_data.amount)
+        _,_,amount = string.find(aura_data.amount,"^#(%d+)")
         if not amount then
-            print("malformed buff/debuff check")
-            return false -- TODO, is this ok?
+            Roids.Print("invalid stack amount argument!")
+            return false
         end
+        amount = tonumber(amount)
     end
     name = string.gsub(name, "_", " ")
 
     local stack_count = 0
-    if not isbuff then
-        -- search debuffs
-        local i = 1
-        local id = 0
-        while id do
-            _,stacks,_,id = UnitDebuff(unit,i)
-            if id and id < -1 then id = id + 65536 end
-            if name == SpellInfo(id) then
-                stack_count = stacks
-                break
-            end
-            i = i + 1
+    local i = 1
+    while true do
+        local stacks, aura_id = getAura(unit, i, isbuff)
+        if not aura_id then break end  -- End of buffs/debuffs list
+        if aura_id < -1 then aura_id = aura_id + 65536 end
+        if name == SpellInfo(aura_id) then
+            stack_count = stacks or 1
+            break
         end
-    end
-    if stack_count == 0 then
-        -- not found? search buffs then too
-        local i = 1
-        local id = 0
-        while id do
-            _,stacks,id = UnitBuff(unit,i)
-            if id and id < -1 then id = id + 65536 end
-            if name == SpellInfo(id) then
-                stack_count = stacks
-                break
-            end
-            i = i + 1
-        end
+        i = i + 1
     end
 
-    if limit == 1 and stack_count > amount then
-        return true
-    elseif limit == 0 and stack_count < amount then
-        return true
-    elseif limit == nil and stack_count == amount then
-        return true
+    if limit == 1 then
+        return stack_count > amount
+    elseif limit == 0 then
+        return stack_count < amount
     else
-        return false
+        return stack_count ~= 0
     end
 end
 
@@ -316,6 +268,19 @@ function Roids.CheckChanneled(conditionals)
     return true;
 end
 
+-- Checks whether or not the target has the specified number of combo points on it
+-- bigger: 1 if the number needs to be bigger, 0 if it needs to be lower
+-- amount: The required amount
+-- returns: True or false
+function Roids.ValidateCombo(bigger, amount)
+	local cp = GetComboPoints()
+    if bigger == 0 then
+        return cp < tonumber(amount);
+    end
+    
+    return cp > tonumber(amount);
+end
+
 -- Checks whether or not the given unit has more or less power in percent than the given amount
 -- unit: The unit we're checking
 -- bigger: 1 if the percentage needs to be bigger, 0 if it needs to be lower
@@ -380,7 +345,7 @@ function Roids.ValidateCreatureType(creatureType, target)
     return string.lower(creatureType) == string.lower(targetType) or creatureType == englishType;
 end
 
--- this should technically keep a table of cooldowns it's seen and when, in case of something like GetContainerItemCooldownByName and you run out of the item
+-- TODO this should technically keep a table of cooldowns it's seen and when, in case of something like GetContainerItemCooldownByName and you run out of the item
 function Roids.ValidateCooldown(cooldown_data)
     local limit,amount
     local name = cooldown_data
@@ -411,42 +376,74 @@ function Roids.ValidateCooldown(cooldown_data)
     end
 end
 
-function Roids.ValidatePlayerAura(aura_data,debuff)
+function Roids.ValidatePlayerAura(aura_data,isbuff)
     if not Roids.has_superwow then
         Roids.Print("'mybuff/mydebuff' conditional requires SuperWoW")
         return
     end
     local limit,amount
     local name = aura_data
+    local isTimeCheck = nil
     if type(aura_data) == "table" then
         limit = aura_data.bigger
-        amount = tonumber(aura_data.amount)
+        -- time check
+        timeAmount = tonumber(aura_data.amount)
+        -- stack check
+        _,_,stackAmount = string.find(aura_data.amount,"^#(%d+)")
+        if not timeAmount and not stackAmount then
+            Roids.Print("invalid stack/time amount argument!")
+        end
+        if timeAmount then
+            isTimeCheck = 1
+            amount = timeAmount
+        else
+            isTimeCheck = nil
+            amount = tonumber(stackAmount)
+        end
         name = aura_data.name
     end
     name = string.gsub(name, "_", " ")
 
-    local ix = 0
-    local aura_ix = -1
-    local rem = 0
-    repeat
-        aura_ix = GetPlayerBuff(ix,debuff and "HARMFUL" or "HELPFUL")
-        ix = ix + 1
-        if aura_ix ~= -1 then
-            local bid = GetPlayerBuffID(aura_ix)
-            bid = (bid < -1) and bid + 65536 or bid
-            if SpellInfo(bid) == name then
-                rem = GetPlayerBuffTimeLeft(aura_ix)
-                break
+    local rem,stack_count,i = 0,0,1
+    while true do
+        local stacks, aura_id = getAura("player", i, isbuff)
+        if not aura_id then break end  -- End of buffs/debuffs list
+        if aura_id < -1 then aura_id = aura_id + 65536 end
+        if name == SpellInfo(aura_id) then
+            stack_count = stacks or 1
+            if isTimeCheck then
+                local aura_ix = -1
+                local i2 = 0
+                while true do
+                    aura_ix = GetPlayerBuff(i2,isbuff and "HELPFUL|PASSIVE" or "HARMFUL")
+                    if aura_ix == -1 then break end
+                    local bid = GetPlayerBuffID(aura_ix)
+                    if bid < -1 then bid = bid + 65536 end
+                    if aura_id == bid then
+                        rem = GetPlayerBuffTimeLeft(aura_ix)
+                        break
+                    end
+                    i2 = i2 + 1
+                end
             end
+            break
         end
-    until aura_ix == -1
+        i = i + 1
+    end
 
-    if limit == 1 and rem ~= 0 then
-        return rem >= amount
+    local data = 0
+    if isTimeCheck then
+        data = rem
+    else
+        data = stack_count
+    end
+
+    if limit == 1 then
+        return data > amount
     elseif limit == 0 then
-        return rem <= amount
-    elseif limit == nil then
-        return (aura_ix ~= -1)
+        return data < amount
+    else
+        return data ~= 0
     end
 end
 
@@ -506,6 +503,7 @@ function Roids.GetInventoryCooldownByName(itemName)
     return nil
 end
 
+-- TODO, this should not check for new cache hits unless a bag_update event has fired since last scan
 -- Returns the cooldown of the given itemName in the player's bags or nil if no such item was found
 function Roids.GetContainerItemCooldownByName(itemName)
     local function CheckItem(bag,slot)
@@ -556,25 +554,35 @@ local function Or(t,func)
     return false
 end
 
-local reactives = {
-    ["interface\\icons\\ability_warrior_revenge"] = "revenge", -- war
-    ["interface\\icons\\ability_meleedamage"] = "overpower", -- war
-    ["interface\\icons\\ability_warrior_challange"] = "riposte", -- rogue
-    ["interface\\icons\\ability_hunter_swiftstrike"] = "mongoose_bite", -- hunter
-    ["interface\\icons\\ability_warrior_challange"] = "counterattack", -- hunter
-    ["interface\\icons\\ability_warrior_riposte"] = "counterattack", -- twow 1.17.2 war
-    ["interface\\icons\\inv_enchant_essencemysticallarge"] = "arcane_surge",
+-- TODO check raptor strike and mongoose for 1.17.2
+Roids.reactives = {
+    ROGUE = {
+        ["interface\\icons\\ability_warrior_challange"] = "riposte", -- rogue
+    },
+    WARRIOR = {
+        ["interface\\icons\\ability_warrior_revenge"] = "revenge",
+        ["interface\\icons\\ability_meleedamage"] = "overpower", -- war
+        ["interface\\icons\\ability_warrior_riposte"] = "counterattack", -- twow 1.17.2 war
+    },
+    HUNTER = {
+        ["interface\\icons\\ability_warrior_challange"] = "counterattack", -- hunter
+        ["interface\\icons\\ability_hunter_swiftstrike"] = "mongoose_bite", -- hunter
+    },
+    MAGE = {
+        ["interface\\icons\\inv_enchant_essencemysticallarge"] = "arcane_surge",
+    },
 }
 
 -- store found reactive id's, why scan every slot every press
-local reactive = {}
+Roids.live_reactives = {}
 function Roids.CheckReactiveAbility(spellName)
+    local _,class = UnitClass("player")
     spellName = string.lower(spellName)
     local function CheckAction(tex,spellName,actionSlot)
         if tex and spellName and actionSlot then
             tex = string.lower(tex)
-            for spell,spell_texture in pairs(reactives) do
-                if reactives[tex] == spellName then
+            for rspell_texture,rspellName in pairs(Roids.reactives[class]) do
+                if rspell_texture == tex and rspellName == spellName then
                     local isUsable = IsUsableAction(actionSlot)
                     local start, duration = GetActionCooldown(actionSlot)
                     if isUsable and (start == 0 or duration == 1.5) then -- 1.5 just means gcd is active
@@ -588,22 +596,35 @@ function Roids.CheckReactiveAbility(spellName)
         return false,false
     end
 
-    if reactive[spellName] then
-        local tex = GetActionTexture(reactive[spellName])
-        local r,was_hit = CheckAction(tex,spellName,reactive[spellName])
-        if was_hit then
-            return r
+    -- check if we've search already
+    if Roids.live_reactives[spellName] ~= -1 then
+        -- check if we cached it
+        if Roids.live_reactives[spellName] then
+            local tex = GetActionTexture(Roids.live_reactives[spellName])
+            local r,was_hit = CheckAction(tex,spellName,Roids.live_reactives[spellName])
+            if was_hit then
+                -- print(tostring(r).."1 "..spellName)
+                return r
+            end
         end
-    end
-    for actionSlot = 1, 120 do
-        local tex = GetActionTexture(actionSlot)
-        local r,was_hit = CheckAction(tex,spellName,actionSlot)
-        if was_hit then
-            reactive[spellName] = actionSlot
-            return r
+        -- search for it
+        for actionSlot = 1, 120 do
+            local tex = GetActionTexture(actionSlot)
+            if tex and not GetActionText(actionSlot) then
+                local r,was_hit = CheckAction(tex,spellName,actionSlot)
+                if was_hit then
+                    Roids.live_reactives[spellName] = actionSlot
+                    -- print(tostring(r).."2 "..spellName)
+                    return r
+                end
+            end
+            -- wasn't on bars, ignore the reactive until action bars change
         end
+        Roids.live_reactives[spellName] = -1
+        Roids.Print(spellName .. " not found on action bars, or isn't an implemented reactive.")
+    -- else
+        -- print(spellName.." is -1")
     end
-    Roids.Print(spellName .. " not found on action bars, or isn't an implemented reactive.")
     return false
 end
 
@@ -621,6 +642,21 @@ function Roids.CheckSpellCast(spell,unit)
         if spell == SpellInfo(Roids.spell_tracking[guid].spell_id) or (spell == "") then
             return true
         end
+        return false
+    end
+end
+
+-- Checks whether or not the distance between player and the current target is less than spell max range
+-- actionSlot: the action slot number of the spell
+-- returns: True or false
+-- check https://wowwiki-archive.fandom.com/wiki/API_IsActionInRange
+function Roids.CheckActionInrange(actionSlot)
+    local ret = IsActionInRange(actionSlot)
+    if ret == 0 then
+        return false
+    elseif ret == 1 then
+        return true
+    else
         return false
     end
 end
@@ -742,10 +778,6 @@ Roids.Keywords = {
         end)
     end,
 
-    dead = function(conditionals)
-        return UnitIsDeadOrGhost(conditionals.target);
-    end,
-
     reactive = function(conditionals)
         return And(conditionals.reactive,function (v)
             return Roids.CheckReactiveAbility(v)
@@ -756,6 +788,10 @@ Roids.Keywords = {
         return And(conditionals.noreactive,function (v)
             return not Roids.CheckReactiveAbility(v)
         end)
+    end,
+
+    dead = function(conditionals)
+        return UnitIsDeadOrGhost(conditionals.target);
     end,
 
     nodead = function(conditionals)
@@ -783,18 +819,17 @@ Roids.Keywords = {
         return false;
     end,
         
+
     checkchanneled = function(conditionals)
         return Roids.CheckChanneled(conditionals);
     end,
 
     buff = function(conditionals)
         return And(conditionals.buff,function (v) return Roids.ValidateAura(v, true, conditionals.target) end)
-        -- return And(conditionals.buff,function (v) return Roids.HasBuffName(v, conditionals.target) end)
     end,
 
     nobuff = function(conditionals)
         return And(conditionals.nobuff,function (v) return not Roids.ValidateAura(v, true, conditionals.target) end)
-        -- return And(conditionals.nobuff,function (v) return not Roids.HasBuffName(v, conditionals.target) end)
     end,
 
     debuff = function(conditionals)
@@ -803,25 +838,28 @@ Roids.Keywords = {
 
     nodebuff = function(conditionals)
         return And(conditionals.nodebuff,function (v) return not Roids.ValidateAura(v, false, conditionals.target) end)
-        -- return And(conditionals.nodebuff,function (v) return not Roids.HasDeBuffName(v, conditionals.target) end)
     end,
 
     mybuff = function(conditionals)
-        return And(conditionals.mybuff,function (v) return Roids.ValidatePlayerAura(v,false) end)
+        return And(conditionals.mybuff,function (v) return Roids.ValidatePlayerAura(v,true) end)
     end,
 
     nomybuff = function(conditionals)
-        return And(conditionals.nomybuff,function (v) return not Roids.ValidatePlayerAura(v,false) end)
+        return And(conditionals.nomybuff,function (v) return not Roids.ValidatePlayerAura(v,true) end)
     end,
 
     mydebuff = function(conditionals)
-        return And(conditionals.mydebuff,function (v) return Roids.ValidatePlayerAura(v,true) end)
+        return And(conditionals.mydebuff,function (v) return Roids.ValidatePlayerAura(v,false) end)
     end,
 
     nomydebuff = function(conditionals)
-        return And(conditionals.nomydebuff,function (v) return not Roids.ValidatePlayerAura(v,true) end)
+        return And(conditionals.nomydebuff,function (v) return not Roids.ValidatePlayerAura(v,false) end)
     end,
-    
+        
+    combo = function(conditionals)
+        return And(conditionals.combo,function (v) return Roids.ValidateCombo(v.bigger, v.amount) end)
+    end,
+
     power = function(conditionals)
         return And(conditionals.power,function (v) return Roids.ValidatePower(conditionals.target, v.bigger, v.amount) end)
     end,
@@ -846,7 +884,6 @@ Roids.Keywords = {
         return And(conditionals.myhp,function (v) return Roids.ValidateHp("player", v.bigger, v.amount) end)
     end,
     
-    -- TODO allow multiple types
     type = function(conditionals)
         return And(conditionals.type, function (v) return Roids.ValidateCreatureType(v, conditionals.target) end)
     end,
@@ -869,18 +906,30 @@ Roids.Keywords = {
     end,
     
     attacks = function(conditionals)
-        return UnitIsUnit("targettarget", conditionals.attacks);
+        return And(conditionals.attacks,function (v) return UnitIsUnit("targettarget", v) end)
     end,
     
     noattacks = function(conditionals)
-        return not UnitIsUnit("targettarget", conditionals.noattacks);
+        return And(conditionals.noattacks,function (v) return not UnitIsUnit("targettarget", v) end)
     end,
     
     isplayer = function(conditionals)
-        return UnitIsPlayer(conditionals.isplayer);
+        return And(conditionals.isplayer,function (v) return UnitIsPlayer(v) end)
     end,
     
     isnpc = function(conditionals)
-        return not UnitIsPlayer(conditionals.isnpc);
+        return And(conditionals.isnpc,function (v) return not UnitIsPlayer(v) end)
+    end,
+
+    hasPet = function(conditionals)
+        return HasPetUI();
+    end,
+
+    -- TODO update to spellName version, need to implement spell name -> action slot number(same in [reactive])
+    inRange = function(conditionals)
+        return And(conditionals.inRange,function (v) return Roids.CheckActionInrange(v) end)
+    end,
+    outRange = function(conditionals)
+        return And(conditionals.outRange,function (v) return not Roids.CheckActionInrange(v) end)
     end,
 };
