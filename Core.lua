@@ -400,6 +400,18 @@ function Roids.FindItem(itemName)
     -- just in case, prob not neccesary given where FindItem is used
     local itemName = string.gsub(itemName, "_", " ");
 
+    -- check stored table, micro-optimization
+    if items_table[itemName] then
+        local link = GetContainerItemLink(items_table[itemName].bag,items_table[itemName].slot)
+        if link then
+            local _,_,full_itemId,itemId = string.find(link,"(item:(%d+):%d+:%d+:%d+)")
+            local name,_link,_,_lvl,_type,subtype = GetItemInfo(full_itemId)
+            if itemId and itemId == itemName or itemName == name then
+                return items_table[itemName].bag, items_table[itemName].slot;
+            end
+        end
+    end
+
     -- check inv first, unlikely that bags are a smaller search space
     local slotLink = nil
     for i = 0, 19 do
@@ -413,18 +425,6 @@ function Roids.FindItem(itemName)
             local name,_link,_,_lvl,_type,subtype = GetItemInfo(full_itemId)
             if name == itemName then
                 return -i
-            end
-        end
-    end
-
-    -- check stored table, micro-optimization not rly needed probably tbh
-    if items_table[itemName] then
-        local link = GetContainerItemLink(items_table[itemName].bag,items_table[itemName].slot)
-        if link then
-            local _,_,full_itemId,itemId = string.find(link,"(item:(%d+):%d+:%d+:%d+)")
-            local name,_link,_,_lvl,_type,subtype = GetItemInfo(full_itemId)
-            if itemId and itemId == itemName or itemName == name then
-                return items_table[itemName].bag, items_table[itemName].slot;
             end
         end
     end
@@ -444,6 +444,23 @@ function Roids.FindItem(itemName)
             end
         end
     end
+end
+
+function Roids.DoCancelAura(msg)
+    local handled = false;
+
+    local handled = false;
+    msg = Roids.Trim(msg);
+
+    for k, v in pairs(Roids.splitStringIgnoringQuotes(msg)) do
+        print(k)
+        print(v)
+        if Roids.DoWithConditionals(v, Roids.CancelAura, Roids.FixEmptyTarget, not Roids.has_superwow, Roids.CancelAura) then
+            handled = true; -- we parsed at least one command
+            break
+        end
+    end
+    return handled
 end
 
 -- Attempts to use or equip an item from the player's inventory by a  set of conditionals
