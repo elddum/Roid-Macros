@@ -453,8 +453,6 @@ function Roids.DoCancelAura(msg)
     msg = Roids.Trim(msg);
 
     for k, v in pairs(Roids.splitStringIgnoringQuotes(msg)) do
-        print(k)
-        print(v)
         if Roids.DoWithConditionals(v, Roids.CancelAura, Roids.FixEmptyTarget, not Roids.has_superwow, Roids.CancelAura) then
             handled = true; -- we parsed at least one command
             break
