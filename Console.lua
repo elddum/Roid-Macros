@@ -36,7 +36,7 @@ SlashCmdList.UNSHIFT = Roids.DoUnshift;
 SLASH_CANCELAURA1 = "/cancelaura";
 SLASH_CANCELAURA2 = "/unbuff";
 
-SlashCmdList.CANCELAURA = Roids.CancelAura;
+SlashCmdList.CANCELAURA = Roids.DoCancelAura;
 
 SLASH_STARTATTACK1 = "/startattack";
 

@@ -558,6 +558,7 @@ end
 Roids.reactives = {
     ROGUE = {
         ["interface\\icons\\ability_warrior_challange"] = "riposte", -- rogue
+        ["interface\\icons\\ability_rogue_surpriseattack"] = "surprise_attack", -- rogue
     },
     WARRIOR = {
         ["interface\\icons\\ability_warrior_revenge"] = "revenge",
