@@ -5,8 +5,9 @@
 local _G = _G or getfenv(0)
 local Roids = _G.Roids or {}
 
--- local cache to reduce search time for cooldown purposes
+-- local caches to reduce search times for cooldown purposes
 local item_cache = {}
+local spell_cache = {}
 
 function print(msg)
     DEFAULT_CHAT_FRAME:AddMessage(msg)
@@ -449,28 +450,41 @@ end
 
 -- Returns the cooldown of the given spellName or nil if no such spell was found
 function Roids.GetSpellCooldownByName(spellName)
-    local checkFor = function(bookType)
-        local i = 1
-        while true do
-            local name, spellRank = GetSpellName(i, bookType);
-            
-            if not name then
-                break;
-            end
-            
-            if name == spellName then
-                return GetSpellCooldown(i, bookType);
-            end
-            
-            i = i + 1
+    -- 1) Try the cached location first
+    local cache = spell_cache[spellName]
+    if cache then
+        -- check to see if cache is accurate
+        local name = GetSpellName(cache.index, cache.bookType)
+        if name == spellName then
+            local start, duration = GetSpellCooldown(cache.index, cache.bookType)
+            return duration, start
         end
-        return nil;
     end
 
-    local start,cd = checkFor(BOOKTYPE_PET);
-    if not cd then start,cd = checkFor(BOOKTYPE_SPELL); end
+    -- 2) Fallback scan function
+    local function scanBook(bookType)
+        local i = 1
+        while true do
+            local name, rank = GetSpellName(i, bookType)
+            if not name then break end
+            if name == spellName then
+                local start, duration = GetSpellCooldown(i, bookType)
+                -- cache for next time
+                spell_cache[spellName] = { bookType = bookType, index = i }
+                return duration, start
+            end
+            i = i + 1
+        end
+        return nil
+    end
 
-    return cd,start;
+    -- 3) Scan pet book then player book
+    local duration, start = scanBook(BOOKTYPE_PET)
+    if not duration then
+        duration, start = scanBook(BOOKTYPE_SPELL)
+    end
+
+    return duration, start
 end
 
 -- Returns the cooldown of the given equipped itemName or nil if no such item was found
